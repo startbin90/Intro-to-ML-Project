@@ -80,13 +80,18 @@ def update_u_z(train_data, lr, u, z):
     c = train_data["is_correct"][i]
     n = train_data["user_id"][i]
     q = train_data["question_id"][i]
+
+    un = u[n]
+    zq = z[q]
+    u[n] = un + lr * (c - np.dot(un, zq)) * zq
+    z[q] = zq + lr * (c - np.dot(un, zq)) * un
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
     return u, z
 
 
-def als(train_data, k, lr, num_iteration):
+def als(train_data, k, lr, num_iteration, val_data):
     """ Performs ALS algorithm. Return reconstructed matrix.
 
     :param train_data: A dictionary {user_id: list, question_id: list,
@@ -106,7 +111,17 @@ def als(train_data, k, lr, num_iteration):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    mat = None
+    counter = 0
+    for i in range(num_iteration):
+        counter += 1
+        u, z = update_u_z(train_data, lr, u, z)
+
+        if counter == 5000:
+            mat = u @ z.T
+            acc = sparse_matrix_evaluate(val_data, mat)
+            print("iteration {}, loss = {} valid acc = {}".format(i, squared_error_loss(train_data, u, z), acc))
+            counter = 0
+    mat = u @ z.T
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -124,7 +139,11 @@ def main():
     # (SVD) Try out at least 5 different k and select the best k        #
     # using the validation set.                                         #
     #####################################################################
-    pass
+    # k_lst = [5, 10, 15, 20, 25]
+    # for k in k_lst:
+    #     reconst = svd_reconstruct(train_matrix, k)
+    #     acc = sparse_matrix_evaluate(val_data, reconst)
+    #     print("Validation Accuracy: {} when k = {}".format(acc, k))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -134,7 +153,15 @@ def main():
     # (ALS) Try out at least 5 different k and select the best k        #
     # using the validation set.                                         #
     #####################################################################
-    pass
+    k_lst = [
+        # 5, 10, 15,
+             20,
+             # 25
+             ]
+    for k in k_lst:
+        reconst = als(train_data, k, 0.2, 500000, val_data)
+        acc = sparse_matrix_evaluate(val_data, reconst)
+        print("Validation Accuracy: {} when k = {}".format(acc, k))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
