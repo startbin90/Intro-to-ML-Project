@@ -1,8 +1,3 @@
-import os,sys,inspect
-current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
-
 from utils import *
 from torch.autograd import Variable
 
@@ -258,5 +253,4 @@ def main():
 
 
 if __name__ == "__main__":
-    os.chdir(os.getcwd() + '/part_a')
     main()

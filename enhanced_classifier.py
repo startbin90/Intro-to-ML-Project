@@ -70,39 +70,23 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, bootstrap_en
     optimizer = optim.SGD(model.parameters(), lr=lr)
     num_student = train_data.shape[0]
 
-    # get the questions and multipcity of each question for each users
-    questions, counts = [], []
-    start = 0
-    for user_id in range(num_student):
-        qs, cs = [], []
-        for uq in unique_entries[start:]:
-            if uq[0] != user_id:
-                break
-            cs.append(data_count[(user_id, uq[1])])
-            qs.append(uq[1])
-        questions.append(qs)
-        counts.append(cs)
-        start += len(questions)
-
-
     for epoch in range(0, num_epoch):
         train_loss = 0.
         start = 0
         for user_id in range(num_student):
-            # questions, counts = [], []
-            # for _, uq in enumerate(unique_entries[start:]):
-            #     if uq[0] != user_id:
-            #         break
-            #     counts.append(data_count[(user_id, uq[1])]) # get the count of that question
-            #     questions.append(uq[1])
-            # start += len(questions)
-            qs, cs = questions[user_id], counts[user_id]
-
+            #TODO: replace this with the sampled one and other entries = 0
+            questions, counts = [], []
+            for i, uq in enumerate(unique_entries[start:]):
+                if uq[0] != user_id:
+                    break
+                counts.append(data_count[(user_id, uq[1])]) # get the count of that question
+                questions.append(uq[1])
+            start += len(questions)
             sampled_inputs = np.empty(train_data.shape[1])
             sampled_inputs[:] = np.NaN
-            
+
             # get the sampled entries
-            sampled_inputs[qs] = zero_train_data[user_id, qs]
+            sampled_inputs[questions] = zero_train_data[user_id, questions]
             zero_inputs = np.copy(sampled_inputs)
             zero_inputs[np.isnan(sampled_inputs)] = 0 # replace the nan with 0
 
@@ -117,10 +101,11 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, bootstrap_en
             nan_mask = np.isnan(torch.FloatTensor(sampled_inputs).unsqueeze(0).numpy())
             target[0][nan_mask] = output[0][nan_mask]
 
+            #TODO: modify it so that it consider the repeated sample
             # the repeated entries and target need to multiple the mulplicity to take the replacement into account
             output_mulplicity = np.empty(output.shape[1])
             output_mulplicity[:] = 1
-            output_mulplicity[qs] = cs # the multiplicity of each question after resample
+            output_mulplicity[questions] = counts # the multiplicity of each question after resample
             output, target = output * torch.FloatTensor(output_mulplicity).unsqueeze(0), target * torch.FloatTensor(output_mulplicity).unsqueeze(0)
             loss = torch.sum((output - target) ** 2.) + 0.5 * lamb * model.get_weight_norm()
             loss.backward()
@@ -162,7 +147,7 @@ def nn_ensemble():
         # model.eval()
         opt_acc, opt_model = nn_classifier(zero_train_matrix, train_matrix, valid_data, test_data, zipped_data)
         # save the trained model for future use
-        # torch.save(opt_model, './nn_models/model{}'.format(i))
+        torch.save(opt_model, './nn_models/model{}'.format(i))
         models.append(opt_model)
 
     # check test accuracy

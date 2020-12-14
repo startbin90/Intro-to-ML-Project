@@ -1,8 +1,3 @@
-import os,sys,inspect
-current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
-
 from utils import *
 from torch.autograd import Variable
 
@@ -192,7 +187,7 @@ def evaluate(model, train_data, valid_data):
 
 
 def main():
-    zero_train_matrix, train_matrix, valid_data, test_data = load_data()
+    zero_train_matrix, train_matrix, valid_data, test_data, train_data = load_data()
 
     #####################################################################
     # TODO:                                                             #
@@ -247,22 +242,5 @@ def main():
     #                       END OF YOUR CODE                            #
     #####################################################################
 
-def simple_nn(k=10, lamb=0.01, num_epoch=100):
-    """insert the optimal hyperparameters"""
-    zero_train_matrix, train_matrix, valid_data, test_data, _ = load_data()
-
-    max_acc_lst = []
-    test_acc_lst = []
-    lr = 0.01
-    model = AutoEncoder(train_matrix.shape[1], k=k)
-
-    max_valid_acc, best_model = train(model, lr, lamb, train_matrix, zero_train_matrix,
-                                        valid_data, num_epoch, k)
-    max_acc_lst.append(max_valid_acc)
-    test_acc = evaluate(best_model, zero_train_matrix, test_data)
-    test_acc_lst.append(test_acc)
-
 if __name__ == "__main__":
-    os.chdir(os.getcwd() + '/part_a')
-    # main()
-    simple_nn()
+    main()
