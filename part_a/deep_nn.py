@@ -1,0 +1,256 @@
+from utils import *
+from torch.autograd import Variable
+
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.utils.data
+
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+import copy
+
+def load_data(base_path="../data"):
+    """ Load the data in PyTorch Tensor.
+
+    :return: (zero_train_matrix, train_data, valid_data, test_data)
+        WHERE:
+        zero_train_matrix: 2D sparse matrix where missing entries are
+        filled with 0.
+        train_data: 2D sparse matrix
+        valid_data: A dictionary {user_id: list,
+        user_id: list, is_correct: list}
+        test_data: A dictionary {user_id: list,
+        user_id: list, is_correct: list}
+    """
+    train_matrix = load_train_sparse(base_path).toarray()
+    valid_data = load_valid_csv(base_path)
+    test_data = load_public_test_csv(base_path)
+
+    zero_train_matrix = train_matrix.copy()
+    # Fill in the missing entries to 0.
+    zero_train_matrix[np.isnan(train_matrix)] = 0
+    # Change to Float Tensor for PyTorch.
+    zero_train_matrix = torch.FloatTensor(zero_train_matrix)
+    train_matrix = torch.FloatTensor(train_matrix)
+
+    return zero_train_matrix, train_matrix, valid_data, test_data
+
+
+class AutoEncoder(nn.Module):
+    def __init__(self, num_question, k=100):
+        """ Initialize a class AutoEncoder.
+
+        :param num_question: int
+        :param k: int
+        """
+        super(AutoEncoder, self).__init__()
+
+        # Define linear functions.
+        self.middleg = nn.Linear(num_question, 100)
+        self.g = nn.Linear(100, k)
+        self.h = nn.Linear(k, 100)
+        self.middleh = nn.Linear(100, num_question)
+
+    def get_weight_norm(self):
+        """ Return ||W^1|| + ||W^2||.
+
+        :return: float
+        """
+        g_w_norm = torch.norm(self.g.weight, 2)
+        h_w_norm = torch.norm(self.h.weight, 2)
+        middleg_w_norm = torch.norm(self.middleg.weight, 2)
+        middleh_w_norm = torch.norm(self.middleh.weight, 2)
+        return g_w_norm + h_w_norm + middleg_w_norm + middleh_w_norm
+
+    def forward(self, inputs):
+        """ Return a forward pass given inputs.
+
+        :param inputs: user vector.
+        :return: user vector.
+        """
+        #####################################################################
+        # TODO:                                                             #
+        # Implement the function as described in the docstring.             #
+        # Use sigmoid activations for f and g.                              #
+        #####################################################################
+        sig_middleg = torch.sigmoid(self.middleg(inputs))
+        sig_g = torch.sigmoid(self.g(sig_middleg))
+        # sig_drop = F.dropout(sig_g, 0.2)
+        sig_h = torch.sigmoid(self.h(sig_g))
+        out = torch.sigmoid(self.middleh(sig_h))
+        #####################################################################
+        #                       END OF YOUR CODE                            #
+        #####################################################################
+        return out
+
+
+def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch, k):
+    """ Train the neural network, where the objective also includes
+    a regularizer.
+
+    :param model: Module
+    :param lr: float
+    :param lamb: float
+    :param train_data: 2D FloatTensor
+    :param zero_train_data: 2D FloatTensor
+    :param valid_data: Dict
+    :param num_epoch: int
+    :return: None
+    """
+    # TODO: Add a regularizer to the cost function.
+
+    train_loss_lst = []
+    valid_acc_lst = []
+    best_acc = 0
+    best_model = None
+    best_epoch = 0
+    # Tell PyTorch you are training the model.
+    model.train()
+
+    # Define optimizers and loss function.
+    optimizer = optim.SGD(model.parameters(), lr=lr)
+    num_student = train_data.shape[0]
+
+    for epoch in range(0, num_epoch):
+        train_loss = 0.
+
+        for user_id in range(num_student):
+            inputs = Variable(zero_train_data[user_id]).unsqueeze(0)
+            target = inputs.clone()
+
+            optimizer.zero_grad()
+            output = model(inputs)
+
+            # Mask the target to only compute the gradient of valid entries.
+            nan_mask = np.isnan(train_data[user_id].unsqueeze(0).numpy())
+            target[0][nan_mask] = output[0][nan_mask]
+
+            loss = torch.sum((output - target) ** 2.) + 0.5 * lamb * model.get_weight_norm()
+            loss.backward()
+
+            train_loss += loss.item()
+            optimizer.step()
+
+        valid_acc = evaluate(model, zero_train_data, valid_data)
+        print("Epoch: {} \tTraining Cost: {:.6f}\t "
+              "Valid Acc: {}".format(epoch, train_loss, valid_acc))
+
+        train_loss_lst.append(train_loss)
+        valid_acc_lst.append(valid_acc)
+        if valid_acc > best_acc:
+            best_acc = valid_acc
+            best_model = copy.deepcopy(model)
+            best_epoch = epoch
+
+    plt.clf()
+    plt.plot(range(num_epoch), train_loss_lst)
+    plt.xlabel('epoch')
+    plt.ylabel('train loss')
+    plt.title('Plot of epoch vs train loss')
+    plt.savefig("deep_nn_k={}_trainloss_lambda={}.png".format(k, lamb))
+    plt.clf()
+    plt.plot(range(num_epoch), valid_acc_lst)
+    plt.xlabel('epoch')
+    plt.ylabel('valid accuracy')
+    plt.title('Plot of epoch vs valid accuracy')
+    plt.savefig("deep_nn_k={}_validacc_lambda={}.png".format(k, lamb))
+
+    print("Best epoch = {}".format(best_epoch))
+    return max(valid_acc_lst), best_model
+    #####################################################################
+    #                       END OF YOUR CODE                            #
+    #####################################################################
+
+
+def evaluate(model, train_data, valid_data):
+    """ Evaluate the valid_data on the current model.
+
+    :param model: Module
+    :param train_data: 2D FloatTensor
+    :param valid_data: A dictionary {user_id: list,
+    question_id: list, is_correct: list}
+    :return: float
+    """
+    # Tell PyTorch you are evaluating the model.
+    model.eval()
+
+    total = 0
+    correct = 0
+
+    for i, u in enumerate(valid_data["user_id"]):
+        inputs = Variable(train_data[u]).unsqueeze(0)
+        output = model(inputs)
+
+        guess = output[0][valid_data["question_id"][i]].item() >= 0.5
+        if guess == valid_data["is_correct"][i]:
+            correct += 1
+        total += 1
+    return correct / float(total)
+
+
+def main():
+    zero_train_matrix, train_matrix, valid_data, test_data = load_data()
+
+    #####################################################################
+    # TODO:                                                             #
+    # Try out 5 different k and select the best k using the             #
+    # validation set.                                                   #
+    #####################################################################
+    select_k = 0
+    if select_k:
+        # Set model hyperparameters.
+        k_lst = [10,
+                 # 50, 100, 200, 500
+                 ]
+        max_acc_lst = []
+        test_acc_lst = []
+        for k in k_lst:
+            model = AutoEncoder(train_matrix.shape[1], k=k)
+
+            # Set optimization hyperparameters.
+            lr = 0.01
+            num_epoch = 200
+            lamb = None
+
+            max_valid_acc, best_model = train(model, lr, lamb, train_matrix, zero_train_matrix,
+                                              valid_data, num_epoch, k)
+            max_acc_lst.append(max_valid_acc)
+            test_acc = evaluate(best_model, zero_train_matrix, test_data)
+            test_acc_lst.append(test_acc)
+
+        for idx, k in enumerate(k_lst):
+            print("max validation acc for k = {} is {}, test acc is {}".format(k, max_acc_lst[idx], test_acc_lst[idx]))
+    else:
+        k = 10
+        max_acc_lst = []
+        test_acc_lst = []
+        # Set optimization hyperparameters.
+        lr = 0.01
+        num_epoch = 200
+        lamb_lst = [
+                    # 0.001,
+                    0.01,
+                    # 0.1,
+                    # 1
+                    ]
+        for lamb in lamb_lst:
+            model = AutoEncoder(train_matrix.shape[1], k=k)
+
+            max_valid_acc, best_model = train(model, lr, lamb, train_matrix, zero_train_matrix,
+                                              valid_data, num_epoch, k)
+            max_acc_lst.append(max_valid_acc)
+            test_acc = evaluate(best_model, zero_train_matrix, test_data)
+            test_acc_lst.append(test_acc)
+
+        for idx, lamb in enumerate(lamb_lst):
+            print("max validation acc for lambda = {} is {}, test acc is {}".format(lamb, max_acc_lst[idx],
+                                                                                    test_acc_lst[idx]))
+    #####################################################################
+    #                       END OF YOUR CODE                            #
+    #####################################################################
+
+
+if __name__ == "__main__":
+    main()
