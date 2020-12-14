@@ -2,7 +2,6 @@ import os,sys,inspect
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
-
 from utils import load_train_csv, load_valid_csv, load_public_test_csv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -67,7 +66,6 @@ def bag_evaluate(data, trained_model):
         # get the bagged prediction
         bagged_pred = sum_prediction / len(trained_model)
         predictions.append(bagged_pred >= 0.5)
-
     return np.sum((data["is_correct"] == np.array(predictions))) / len(data["is_correct"])
 
 def main():
@@ -85,13 +83,13 @@ def main():
     print('Ensemble test accuracy: {}'.format(test_acc))
 
     # base model accuracy on validation and test set
-    for i in trained_models:
-        theta, beta = trained_models[i][0], trained_models[i][1]
-        print('Base classifier {} validation accuracy: {}'.format(i, base_evaluate(val_data, theta, beta)))
-        print('Base classifier {} test accuracy: {}'.format(i, base_evaluate(test_data, theta, beta)))
+    # for i in trained_models:
+    #     theta, beta = trained_models[i][0], trained_models[i][1]
+    #     print('Base classifier {} validation accuracy: {}'.format(i, base_evaluate(val_data, theta, beta)))
+    #     print('Base classifier {} test accuracy: {}'.format(i, base_evaluate(test_data, theta, beta)))
 
 if __name__ == "__main__":
-    os.chdir(os.getcwd() + '/starter_code/part_a')
+    os.chdir(os.getcwd() + '/part_a')
     main()
     # on average, ensemble is slightly better
         # could be even better, but constrained by the correlation between dataset
