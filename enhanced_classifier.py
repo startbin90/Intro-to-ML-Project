@@ -162,7 +162,7 @@ def nn_ensemble():
         # model.eval()
         opt_acc, opt_model = nn_classifier(zero_train_matrix, train_matrix, valid_data, test_data, zipped_data)
         # save the trained model for future use
-        torch.save(opt_model, './nn_models/model{}'.format(i))
+        # torch.save(opt_model, './nn_models/model{}'.format(i))
         models.append(opt_model)
 
     # check test accuracy
