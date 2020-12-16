@@ -46,12 +46,12 @@ class AutoEncoder(nn.Module):
         :param k: int
         """
         super(AutoEncoder, self).__init__()
-
+        middle = 100
         # Define linear functions.
-        self.middleg = nn.Linear(num_question, 100)
-        self.g = nn.Linear(100, k)
-        self.h = nn.Linear(k, 100)
-        self.middleh = nn.Linear(100, num_question)
+        self.middleg = nn.Linear(num_question, middle)
+        self.g = nn.Linear(middle, k)
+        self.h = nn.Linear(k, middle)
+        self.middleh = nn.Linear(middle, num_question)
 
     def get_weight_norm(self):
         """ Return ||W^1|| + ||W^2||.
@@ -130,6 +130,14 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch, k
             loss = torch.sum((output - target) ** 2.) + 0.5 * lamb * model.get_weight_norm()
             loss.backward()
 
+            # Below is used to test Binary CrossEntropy loss 
+            # non_nan_mask = ~np.isnan(train_data[user_id].unsqueeze(0).numpy())
+            # # output[0] = output[0][non_nan_mask]
+            # # target[0] = target[0][non_nan_mask]
+            # criterion = nn.BCELoss()
+            # loss = criterion(output[0][non_nan_mask], target[0][non_nan_mask])
+            # loss.backward()
+
             train_loss += loss.item()
             optimizer.step()
 
@@ -190,6 +198,26 @@ def evaluate(model, train_data, valid_data):
     return correct / float(total)
 
 
+def evaluate_on_private_test(model, train_data, valid_data):
+    """ Evaluate the private_test on the current model.
+    """
+    # Tell PyTorch you are evaluating the model.
+    model.eval()
+    predictions = []
+    for i, u in enumerate(valid_data["user_id"]):
+        inputs = Variable(train_data[u]).unsqueeze(0)
+        output = model(inputs)
+
+        guess = output[0][valid_data["question_id"][i]].item() >= 0.5
+        if guess:
+            predictions.append(1.)
+        else:
+            predictions.append(0.)
+        valid_data["is_correct"] = predictions
+    save_private_test_csv(valid_data)
+    return
+
+
 def main():
     zero_train_matrix, train_matrix, valid_data, test_data = load_data()
 
@@ -227,7 +255,7 @@ def main():
         max_acc_lst = []
         test_acc_lst = []
         # Set optimization hyperparameters.
-        lr = 0.01
+        lr = 0.02
         num_epoch = 200
         lamb_lst = [
                     # 0.001,
@@ -243,6 +271,9 @@ def main():
             max_acc_lst.append(max_valid_acc)
             test_acc = evaluate(best_model, zero_train_matrix, test_data)
             test_acc_lst.append(test_acc)
+            torch.save(best_model, "./deep_nn_best_model")
+            private_test = load_private_test_csv("../data")
+            evaluate_on_private_test(best_model, zero_train_matrix, private_test)
 
         for idx, lamb in enumerate(lamb_lst):
             print("max validation acc for lambda = {} is {}, test acc is {}".format(lamb, max_acc_lst[idx],

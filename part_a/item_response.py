@@ -1,8 +1,7 @@
-# from utils import *
-import os,sys,inspect
-current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+# import os,sys,inspect
+# current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+# parent_dir = os.path.dirname(current_dir)
+# sys.path.insert(0, parent_dir)
 
 from utils import load_train_csv, load_valid_csv, load_public_test_csv, load_train_sparse
 import numpy as np
@@ -72,6 +71,7 @@ def update_theta_beta(data_by_user, data_by_questions, unique_user_ids, unique_q
             if j_prime != j:
                 break
             ith = cij - (np.exp(theta[i] - beta[j]) / (1 + np.exp(theta[i] - beta[j])))
+
             beta_j_gradients.append(ith)
         beta[j] = beta[j] - lr * (sum(beta_j_gradients) / len(beta_j_gradients))
         start_pos += len(beta_j_gradients)
@@ -181,8 +181,7 @@ def main():
     val_data = load_valid_csv("../data")
     test_data = load_public_test_csv("../data")
 
-    # learning_rate, iterations = 7, 50
-    learning_rate, iterations = 8, 20
+    learning_rate, iterations = 0.7, 50
 
     train_lld, valid_lld, optimal_theta, optimal_beta, validation_acc = irt(train_data, val_data, learning_rate, iterations)
 
@@ -196,10 +195,8 @@ def main():
     print('Test accuracy: {}'.format(test_acc))
 
     # d - select the first 5 questions and x axis is students
-    # find_probabilities(optimal_theta, optimal_beta)
+    find_probabilities(optimal_theta, optimal_beta)
 
-# Validation accuracy: 0.7071690657634773
-# Test accuracy: 0.7090036692068868
 if __name__ == "__main__":
-    os.chdir(os.getcwd() + '/starter_code/part_a')
+    # os.chdir(os.getcwd() + '/part_a')
     main()

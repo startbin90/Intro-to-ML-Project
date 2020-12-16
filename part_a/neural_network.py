@@ -121,8 +121,6 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch, k
             nan_mask = np.isnan(train_data[user_id].unsqueeze(0).numpy())
             target[0][nan_mask] = output[0][nan_mask]
 
-            #  TODO：modify it so that it consider the repeated sample
-            # the repeated entries and target need to multiple the mulplicity to take the replacement into account
             loss = torch.sum((output - target) ** 2.) + 0.5 * lamb * model.get_weight_norm()
             loss.backward()
 

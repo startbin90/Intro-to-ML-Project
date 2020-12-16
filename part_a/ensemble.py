@@ -1,14 +1,14 @@
-import os,sys,inspect
-current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
-from utils import load_train_csv, load_valid_csv, load_public_test_csv
+# import os,sys,inspect
+# current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+# parent_dir = os.path.dirname(current_dir)
+# sys.path.insert(0, parent_dir)
+from utils import load_train_csv, load_valid_csv, load_public_test_csv, load_private_test_csv, save_private_test_csv
 import numpy as np
 import matplotlib.pyplot as plt
 from item_response import \
     irt as base_classifer, \
     evaluate as base_evaluate, \
-    sigmoid # this is the base classifer
+    sigmoid
 
 def bootstrapping(data, num_learners=3):
     """bootstrapping from the training dataset with replacement
@@ -26,15 +26,14 @@ def bootstrapping(data, num_learners=3):
     for _ in range(num_learners):
         bootstrap = {}
         # sample data with replacement
-        bootstrapped_indices = np.random.randint(low=0, high=len(data['user_id']), size=len(data['user_id']))
-        # check if sample with replacement =>  len(set(bootstrapped_indices)) < len(data['user_id'])
+        bootstrapped_indices = np.random.randint(low=0, high=len(data['user_id'])-1, size=len(data['user_id']))
         bootstrap['user_id'] = data['user_id'][bootstrapped_indices]
         bootstrap['question_id'] = data['question_id'][bootstrapped_indices]
         bootstrap['is_correct'] = data['is_correct'][bootstrapped_indices]
         bootstrapped_data.append(bootstrap)
     return bootstrapped_data
 
-def train_base_classifiers(bootstrap_data, val_data, lr=8, iteration=10): # lr=7, iteration=50
+def train_base_classifiers(bootstrap_data, val_data, lr=0.7, iteration=50): # lr=0.7, iteration=50
     """train each base classifer
 
     :param bootstrap_data: a list of bagged data set
@@ -66,7 +65,10 @@ def bag_evaluate(data, trained_model):
         # get the bagged prediction
         bagged_pred = sum_prediction / len(trained_model)
         predictions.append(bagged_pred >= 0.5)
-    return np.sum((data["is_correct"] == np.array(predictions))) / len(data["is_correct"])
+
+    if len(data['is_correct']) == 0:
+        return 0, predictions
+    return np.sum((data["is_correct"] == np.array(predictions))) / len(data["is_correct"]), predictions
 
 def main():
     train_data = load_train_csv("../data")
@@ -77,21 +79,22 @@ def main():
     trained_models = train_base_classifiers(bootstrapped_data, val_data)
 
     # bagged ensemble accuracy on validation and test set
-    valid_acc = bag_evaluate(val_data, trained_models)
-    test_acc = bag_evaluate(test_data, trained_models)
+    valid_acc, _ = bag_evaluate(val_data, trained_models)
+    test_acc, _ = bag_evaluate(test_data, trained_models)
     print('Ensemble validation accuracy: {}'.format(valid_acc))
     print('Ensemble test accuracy: {}'.format(test_acc))
 
+    private_test = load_private_test_csv("../data")
+    _, predictions = bag_evaluate(private_test, trained_models)
+    private_test['is_correct'] = predictions
+    save_private_test_csv(private_test)
+
     # base model accuracy on validation and test set
-    # for i in trained_models:
-    #     theta, beta = trained_models[i][0], trained_models[i][1]
-    #     print('Base classifier {} validation accuracy: {}'.format(i, base_evaluate(val_data, theta, beta)))
-    #     print('Base classifier {} test accuracy: {}'.format(i, base_evaluate(test_data, theta, beta)))
+    for i in trained_models:
+        theta, beta = trained_models[i][0], trained_models[i][1]
+        print('Base classifier {} validation accuracy: {}'.format(i, base_evaluate(val_data, theta, beta)))
+        print('Base classifier {} test accuracy: {}'.format(i, base_evaluate(test_data, theta, beta)))
 
 if __name__ == "__main__":
-    os.chdir(os.getcwd() + '/part_a')
+    # os.chdir(os.getcwd() + '/part_a')
     main()
-    # on average, ensemble is slightly better
-        # could be even better, but constrained by the correlation between dataset
-        # from the equation of the bagged variance, we know that it is more stable as long as there are some randomnesss
-    
