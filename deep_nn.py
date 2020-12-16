@@ -130,7 +130,7 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch, k
             loss = torch.sum((output - target) ** 2.) + 0.5 * lamb * model.get_weight_norm()
             loss.backward()
 
-            # Below is used to test Binary CrossEntropy loss 
+            # Below is used to test Binary CrossEntropy loss
             # non_nan_mask = ~np.isnan(train_data[user_id].unsqueeze(0).numpy())
             # # output[0] = output[0][non_nan_mask]
             # # target[0] = target[0][non_nan_mask]
@@ -219,7 +219,7 @@ def evaluate_on_private_test(model, train_data, valid_data):
 
 
 def main():
-    zero_train_matrix, train_matrix, valid_data, test_data = load_data()
+    zero_train_matrix, train_matrix, valid_data, test_data = load_data("./data")
 
     #####################################################################
     # TODO:                                                             #
@@ -272,7 +272,7 @@ def main():
             test_acc = evaluate(best_model, zero_train_matrix, test_data)
             test_acc_lst.append(test_acc)
             torch.save(best_model, "./deep_nn_best_model")
-            private_test = load_private_test_csv("../data")
+            private_test = load_private_test_csv("./data")
             evaluate_on_private_test(best_model, zero_train_matrix, private_test)
 
         for idx, lamb in enumerate(lamb_lst):
